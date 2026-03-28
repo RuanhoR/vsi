@@ -1,0 +1,5 @@
+fun FileTest() {
+  var c = process.file.readFile(process.path.join(process."./HelloWorld.vsi"))
+  console.log(c)
+}
+FileTest()

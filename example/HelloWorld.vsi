@@ -1,0 +1,5 @@
+fun main() {
+  var hello = "Hello world"
+  process.stdout.write(hello)
+}
+main()
