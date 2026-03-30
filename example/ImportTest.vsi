@@ -1,0 +1,11 @@
+import "./ImportTestA.vsi" as testA
+
+process.stdout.write("Starting import test\n")
+process.stdout.write("testA type check\n")
+
+// 测试直接访问
+var fn = testA.testFn
+process.stdout.write("got testFn\n")
+process.stdout.write(testA)
+fn()
+process.stdout.write("Import test done\n")

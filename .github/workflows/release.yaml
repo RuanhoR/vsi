@@ -1,0 +1,51 @@
+name: Create Release on Tag
+
+on:
+  push:
+    tags:
+      - "v*" # 匹配所有以 v 开头的标签，如 v1.0.0, v2.1.0
+
+permissions:
+  contents: write # 需要写入权限来创建 release
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 获取所有历史记录，确保标签信息完整
+
+      - name: Setup build environment
+        run: |
+          # 根据你的项目需求添加环境设置
+          # 例如：安装依赖、设置环境变量等
+          echo "Setting up build environment..."
+
+      - name: Make build script executable
+        run: chmod +x ./build.sh
+
+      - name: Run build script
+        run: ./build.sh all
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+          body: |
+            Release ${{ github.ref_name }} created by GitHub Actions.
+            ${{ github.event.head_commit.message }}
+          files: |
+            bin/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify release created
+        run: |
+          echo "Release ${{ github.ref_name }} has been created"
+          echo "Release URL: ${{ steps.create_release.outputs.url }}"

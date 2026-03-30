@@ -1,0 +1,7 @@
+var arr = [10, 20, 30]
+process.stdout.write("arr[0] = ")
+process.stdout.write(arr[0])
+process.stdout.write("\n")
+process.stdout.write("arr[1] = ")
+process.stdout.write(arr[1])
+process.stdout.write("\n")

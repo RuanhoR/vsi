@@ -1,0 +1,59 @@
+// 测试所有新功能
+fun testStringFeatures() {
+  // 测试 String.fromCharCode
+  var char = String.fromCharCode(72, 101, 108, 108, 111)
+  process.stdout.write("fromCharCode: ")
+  process.stdout.write(char)
+  process.stdout.write("\n")
+}
+
+// 测试展开运算符
+fun sum(a, b, c) {
+  return a + b + c
+}
+
+fun testSpread() {
+  var arr = [1, 2, 3]
+  var result = sum(...arr)
+  process.stdout.write("spread result: ")
+  process.stdout.write(result)
+  process.stdout.write("\n")
+}
+
+// 测试 class
+class Person {
+  public fun constructor(name) {
+    this.name = name
+  }
+  
+  public fun greet() {
+    process.stdout.write("Hello, I'm ")
+    process.stdout.write(this.name)
+    process.stdout.write("\n")
+  }
+}
+
+fun testClass() {
+  var person = new Person("VSI")
+  person.greet()
+}
+
+// 测试 try/catch/throw
+fun testTryCatch() {
+  try {
+    process.stdout.write("In try block\n")
+    throw Error.new("test error")
+  } catch (err) {
+    process.stdout.write("Caught: ")
+    process.stdout.write(err.Message)
+    process.stdout.write("\n")
+  } finally {
+    process.stdout.write("In finally block\n")
+  }
+}
+
+// 运行所有测试
+testStringFeatures()
+testSpread()
+testClass()
+testTryCatch()

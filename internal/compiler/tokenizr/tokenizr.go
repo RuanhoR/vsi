@@ -22,6 +22,15 @@ var keywordList = []string{
 	"import",
 	"as",
 	"export",
+	"class",
+	"new",
+	"throw",
+	"try",
+	"catch",
+	"finally",
+	"public",
+	"static",
+	"return",
 }
 
 // 判断是否为数字
@@ -163,7 +172,19 @@ func GenerateTokenizr(code string) []TokenData {
 		}
 
 		// 单字符符号
-		if containsRune([]rune("(){}[];:,."), ch) {
+		if containsRune([]rune("(){}[];:,"), ch) {
+			tokens = append(tokens, TokenData{Type: getSymbolType(ch), Data: string(ch)})
+			i++
+			continue
+		}
+
+		// 处理 . 和 ... 展开运算符
+		if ch == '.' {
+			if i+2 < len(runes) && runes[i+1] == '.' && runes[i+2] == '.' {
+				tokens = append(tokens, TokenData{Type: "SpreadOperator", Data: "..."})
+				i += 3
+				continue
+			}
 			tokens = append(tokens, TokenData{Type: getSymbolType(ch), Data: string(ch)})
 			i++
 			continue
@@ -176,11 +197,37 @@ func GenerateTokenizr(code string) []TokenData {
 			continue
 		}
 
-		// 赋值符
+		// 比较运算符 <, >, <=, >=
+		if ch == '<' || ch == '>' {
+			op := string(ch)
+			if i+1 < len(runes) && runes[i+1] == '=' {
+				op += "="
+				i++
+			}
+			tokens = append(tokens, TokenData{Type: "Operator", Data: op})
+			i++
+			continue
+		}
+
+		// == 和 =
 		if ch == '=' {
+			if i+1 < len(runes) && runes[i+1] == '=' {
+				tokens = append(tokens, TokenData{Type: "Operator", Data: "=="})
+				i += 2
+				continue
+			}
 			tokens = append(tokens, TokenData{Type: "Assignment", Data: "="})
 			i++
 			continue
+		}
+
+		// !=
+		if ch == '!' {
+			if i+1 < len(runes) && runes[i+1] == '=' {
+				tokens = append(tokens, TokenData{Type: "Operator", Data: "!="})
+				i += 2
+				continue
+			}
 		}
 
 		// 标识符 / 关键字

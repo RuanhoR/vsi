@@ -2,8 +2,6 @@ package types
 
 import (
 	"fmt"
-
-	"github.com/RuanhoR/vsi/internal/runner/value"
 )
 
 // ==================== 基础接口 ====================
@@ -313,12 +311,133 @@ func (w *WhileStatement) String() string {
 	return fmt.Sprintf("WhileStatement{Test: %v, Body: %v}", w.Test, w.Body)
 }
 
-type Context struct {
-	Variables map[string]*value.VsiVariable
-	Functions map[string]*value.VsiFunction
-	Imports   map[string]interface{}
+// ==================== Class 相关 ====================
+
+// ClassMethod 类方法
+type ClassMethod struct {
+	Name       string
+	Params     []Parameter
+	Body       *BlockStatement
+	IsStatic   bool
+	IsPublic   bool
+	ReturnType string
 }
-type ProgramContext struct {
-	Top     *Context
-	Current *Context
+
+func (m *ClassMethod) Type() string { return "ClassMethod" }
+func (m *ClassMethod) String() string {
+	return fmt.Sprintf("ClassMethod{Name: %q, IsStatic: %v, IsPublic: %v}", m.Name, m.IsStatic, m.IsPublic)
+}
+
+// ClassProperty 类属性
+type ClassProperty struct {
+	Name     string
+	Value    Expression
+	IsStatic bool
+	IsPublic bool
+}
+
+func (p *ClassProperty) Type() string { return "ClassProperty" }
+func (p *ClassProperty) String() string {
+	return fmt.Sprintf("ClassProperty{Name: %q, IsStatic: %v, IsPublic: %v}", p.Name, p.IsStatic, p.IsPublic)
+}
+
+// ClassDeclaration 类声明
+type ClassDeclaration struct {
+	Name       string
+	Methods    []ClassMethod
+	Properties []ClassProperty
+	Parent     string // 父类名，可能为空
+}
+
+func (c *ClassDeclaration) Type() string     { return "ClassDeclaration" }
+func (c *ClassDeclaration) statementNode()   {}
+func (c *ClassDeclaration) declarationNode() {}
+func (c *ClassDeclaration) String() string {
+	return fmt.Sprintf("ClassDeclaration{Name: %q, Methods: %v, Properties: %v, Parent: %q}", c.Name, c.Methods, c.Properties, c.Parent)
+}
+
+// NewExpression new 表达式
+type NewExpression struct {
+	Class     Expression
+	Arguments []Expression
+}
+
+func (n *NewExpression) Type() string    { return "NewExpression" }
+func (n *NewExpression) expressionNode() {}
+func (n *NewExpression) String() string {
+	return fmt.Sprintf("NewExpression{Class: %v, Arguments: %v}", n.Class, n.Arguments)
+}
+
+// SpreadExpression 展开表达式 (...arr)
+type SpreadExpression struct {
+	Argument Expression
+}
+
+func (s *SpreadExpression) Type() string    { return "SpreadExpression" }
+func (s *SpreadExpression) expressionNode() {}
+func (s *SpreadExpression) String() string {
+	return fmt.Sprintf("SpreadExpression{Argument: %v}", s.Argument)
+}
+
+// ==================== 错误处理 ====================
+
+// ThrowStatement throw 语句
+type ThrowStatement struct {
+	Argument Expression
+}
+
+func (t *ThrowStatement) Type() string   { return "ThrowStatement" }
+func (t *ThrowStatement) statementNode() {}
+func (t *ThrowStatement) String() string {
+	return fmt.Sprintf("ThrowStatement{Argument: %v}", t.Argument)
+}
+
+// CatchClause catch 子句
+type CatchClause struct {
+	Param string // 错误变量名
+	Body  *BlockStatement
+}
+
+func (c *CatchClause) Type() string   { return "CatchClause" }
+func (c *CatchClause) statementNode() {}
+func (c *CatchClause) String() string {
+	return fmt.Sprintf("CatchClause{Param: %q, Body: %v}", c.Param, c.Body)
+}
+
+// TryStatement try 语句
+type TryStatement struct {
+	Block   *BlockStatement
+	Catch   *CatchClause
+	Finally *BlockStatement
+}
+
+func (t *TryStatement) Type() string   { return "TryStatement" }
+func (t *TryStatement) statementNode() {}
+func (t *TryStatement) String() string {
+	return fmt.Sprintf("TryStatement{Block: %v, Catch: %v, Finally: %v}", t.Block, t.Catch, t.Finally)
+}
+
+// VsiError 运行时错误类型
+type VsiError struct {
+	Message   string
+	Stack     []StackFrame
+	ErrorType string
+}
+
+func (e *VsiError) Type() string    { return "VsiError" }
+func (e *VsiError) expressionNode() {}
+func (e *VsiError) String() string {
+	return fmt.Sprintf("VsiError{Type: %q, Message: %q}", e.ErrorType, e.Message)
+}
+
+// StackFrame 调用栈帧
+type StackFrame struct {
+	File     string
+	Function string
+	Line     int
+	Column   int
+}
+
+func (f StackFrame) String() string {
+	return fmt.Sprintf("at %s (%s:%d:%d)", f.Function, f.File, f.Line, f.Column)
 }

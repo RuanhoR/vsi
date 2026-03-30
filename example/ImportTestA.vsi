@@ -1,0 +1,5 @@
+fun testFn() {
+  process.stdout.write("run in ImportTestA.vsi\n")
+}
+
+export { testFn }

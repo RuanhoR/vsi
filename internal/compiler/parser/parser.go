@@ -137,6 +137,12 @@ func (p *Parser) parseStatement() types.Statement {
 			return p.parseWhileStatement()
 		case "return":
 			return p.parseReturnStatement()
+		case "class":
+			return p.parseClassDeclaration()
+		case "throw":
+			return p.parseThrowStatement()
+		case "try":
+			return p.parseTryStatement()
 		}
 	}
 
@@ -474,10 +480,16 @@ func (p *Parser) parseBinary() types.Expression {
 
 // 运算符优先级
 var precedence = map[string]int{
-	"+": 1,
-	"-": 1,
-	"*": 2,
-	"/": 2,
+	"+":  1,
+	"-":  1,
+	"*":  2,
+	"/":  2,
+	"==": 0,
+	"!=": 0,
+	"<":  0,
+	"<=": 0,
+	">":  0,
+	">=": 0,
 }
 
 // parseBinaryWithPrecedence 使用优先级解析二元表达式
@@ -511,21 +523,48 @@ func (p *Parser) parseBinaryWithPrecedence(minPrec int) types.Expression {
 func (p *Parser) parseCall() types.Expression {
 	expr := p.parseMember()
 
-	// 处理函数调用
-	if p.match("ParametersStart") {
-		args := []types.Expression{}
-		if !p.check("ParametersEnd") {
-			args = p.parseArguments()
-		}
-		p.expect("ParametersEnd", "Expected ')' after arguments")
+	for {
+		// 处理函数调用
+		if p.match("ParametersStart") {
+			args := []types.Expression{}
+			if !p.check("ParametersEnd") {
+				args = p.parseArguments()
+			}
+			p.expect("ParametersEnd", "Expected ')' after arguments")
 
-		expr = &types.CallExpression{
-			Callee:    expr,
-			Arguments: args,
+			expr = &types.CallExpression{
+				Callee:    expr,
+				Arguments: args,
+			}
+		} else if p.match("ArrayStart") {
+			// 处理数组索引访问 arr[0]
+			index := p.parseExpression()
+			p.expect("ArrayEnd", "Expected ']' after array index")
+
+			// 将 arr[0] 转换为 MemberExpression
+			// 索引作为属性名（字符串形式）
+			expr = &types.MemberExpression{
+				Object:   expr,
+				Property: indexToString(index),
+			}
+		} else {
+			break
 		}
 	}
 
 	return expr
+}
+
+// indexToString 将索引表达式转换为字符串属性名
+func indexToString(expr types.Expression) string {
+	switch e := expr.(type) {
+	case *types.NumberLiteral:
+		return e.Value
+	case *types.Identifier:
+		return e.Name
+	default:
+		return ""
+	}
 }
 
 // parseArguments 解析参数列表
@@ -533,7 +572,14 @@ func (p *Parser) parseArguments() []types.Expression {
 	args := []types.Expression{}
 
 	for {
-		args = append(args, p.parseExpression())
+		// 检查是否有展开运算符
+		if p.check("SpreadOperator") {
+			p.advance() // 消费 ...
+			arg := p.parseExpression()
+			args = append(args, &types.SpreadExpression{Argument: arg})
+		} else {
+			args = append(args, p.parseExpression())
+		}
 
 		if !p.match("SplitSymbol") {
 			break
@@ -574,12 +620,27 @@ func (p *Parser) parseMember() types.Expression {
 		p.advance()
 		expr = p.parseExpression()
 		p.expect("ParametersEnd", "Expected ')' after expression")
+	case "Keyword":
+		// Handle 'new' keyword
+		if token.Data == "new" {
+			expr = p.parseNewExpression()
+		} else {
+			panic(fmt.Sprintf("Unexpected keyword: %s", token.Data))
+		}
 	default:
 		panic(fmt.Sprintf("Unexpected token: %s (%s)", token.Type, token.Data))
 	}
 
 	for p.match("MemberSymbol") {
-		property := p.expect("Identifier", "Expected property name after '.'").Data
+		// 允许关键字作为属性名（如 Error.new）
+		var property string
+		if p.check("Identifier") {
+			property = p.advance().Data
+		} else if p.check("Keyword") {
+			property = p.advance().Data
+		} else {
+			panic(fmt.Sprintf("Expected property name after '.', got %s (%s)", p.peek().Type, p.peek().Data))
+		}
 		expr = &types.MemberExpression{
 			Object:   expr,
 			Property: property,
@@ -647,4 +708,162 @@ func ParseString(str string) *types.ProgramNode {
 	tokens := tokenizr.GenerateTokenizr(str)
 	parser := NewParser(tokens)
 	return parser.Parse()
+}
+
+// ==================== Class 相关解析 ====================
+
+// parseClassDeclaration 解析类声明
+// class Name { public static xxx() {} public xxx() {} }
+func (p *Parser) parseClassDeclaration() *types.ClassDeclaration {
+	p.expectData("class", "Expected 'class' keyword")
+
+	name := p.expect("Identifier", "Expected class name").Data
+
+	var parent string = ""
+	if p.matchData("extends") {
+		parent = p.expect("Identifier", "Expected parent class name").Data
+	}
+
+	p.expect("BodyStart", "Expected '{' after class name")
+
+	methods := []types.ClassMethod{}
+	properties := []types.ClassProperty{}
+
+	for !p.check("BodyEnd") && !p.isAtEnd() {
+		isPublic := false
+		isStatic := false
+
+		// 解析修饰符
+		if p.matchData("public") {
+			isPublic = true
+		}
+		if p.matchData("static") {
+			isStatic = true
+		}
+		// public static 或 static public 顺序
+		if p.matchData("public") {
+			isPublic = true
+		}
+		if p.matchData("static") {
+			isStatic = true
+		}
+
+		// 方法或属性
+		if p.checkData("fun") {
+			// 方法
+			p.advance() // consume 'fun'
+			methodName := p.expect("Identifier", "Expected method name").Data
+
+			p.expect("ParametersStart", "Expected '(' after method name")
+			params := []types.Parameter{}
+			if !p.check("ParametersEnd") {
+				params = p.parseParameters()
+			}
+			p.expect("ParametersEnd", "Expected ')' after parameters")
+
+			returnType := ""
+			if p.match("KeyNext") {
+				returnType = p.expect("Identifier", "Expected return type").Data
+			}
+
+			body := p.parseBlock()
+
+			methods = append(methods, types.ClassMethod{
+				Name:       methodName,
+				Params:     params,
+				Body:       body,
+				IsStatic:   isStatic,
+				IsPublic:   isPublic,
+				ReturnType: returnType,
+			})
+		} else if p.check("Identifier") {
+			// 属性
+			propName := p.advance().Data
+			var value types.Expression = nil
+			if p.match("Assignment") {
+				value = p.parseExpression()
+			}
+			p.match("SplitSymbol") // 可选的分号
+
+			properties = append(properties, types.ClassProperty{
+				Name:     propName,
+				Value:    value,
+				IsStatic: isStatic,
+				IsPublic: isPublic,
+			})
+		} else {
+			panic(fmt.Sprintf("Unexpected token in class body: %s (%s)", p.peek().Type, p.peek().Data))
+		}
+	}
+
+	p.expect("BodyEnd", "Expected '}' after class body")
+
+	return &types.ClassDeclaration{
+		Name:       name,
+		Methods:    methods,
+		Properties: properties,
+		Parent:     parent,
+	}
+}
+
+// ==================== 错误处理解析 ====================
+
+// parseThrowStatement 解析 throw 语句
+func (p *Parser) parseThrowStatement() *types.ThrowStatement {
+	p.expectData("throw", "Expected 'throw' keyword")
+
+	argument := p.parseExpression()
+
+	return &types.ThrowStatement{
+		Argument: argument,
+	}
+}
+
+// parseTryStatement 解析 try 语句
+func (p *Parser) parseTryStatement() *types.TryStatement {
+	p.expectData("try", "Expected 'try' keyword")
+
+	block := p.parseBlock()
+
+	var catch *types.CatchClause = nil
+	if p.matchData("catch") {
+		p.expect("ParametersStart", "Expected '(' after 'catch'")
+		param := p.expect("Identifier", "Expected error variable name").Data
+		p.expect("ParametersEnd", "Expected ')' after error variable")
+		catchBody := p.parseBlock()
+		catch = &types.CatchClause{
+			Param: param,
+			Body:  catchBody,
+		}
+	}
+
+	var finally *types.BlockStatement = nil
+	if p.matchData("finally") {
+		finally = p.parseBlock()
+	}
+
+	return &types.TryStatement{
+		Block:   block,
+		Catch:   catch,
+		Finally: finally,
+	}
+}
+
+// parseNewExpression 解析 new 表达式
+func (p *Parser) parseNewExpression() *types.NewExpression {
+	p.expectData("new", "Expected 'new' keyword")
+
+	classExpr := p.parseMember()
+
+	p.expect("ParametersStart", "Expected '(' after class name")
+	args := []types.Expression{}
+	if !p.check("ParametersEnd") {
+		args = p.parseArguments()
+	}
+	p.expect("ParametersEnd", "Expected ')' after arguments")
+
+	return &types.NewExpression{
+		Class:     classExpr,
+		Arguments: args,
+	}
 }
