@@ -4,13 +4,25 @@ import (
 	"os"
 
 	"github.com/RuanhoR/vsi/internal/compiler/parser"
-	run "github.com/RuanhoR/vsi/internal/runner/main"
+	"github.com/RuanhoR/vsi/internal/vsic"
 	"github.com/RuanhoR/vsi/pkg/config"
 )
 
 func runExpression(expr string) {
 	node := parser.ParseString(expr)
-	run.RunNode(*node)
+	if node == nil {
+		return
+	}
+	module, err := vsic.CompileModule(node, "<repl>", false)
+	if err != nil {
+		os.Stderr.WriteString("Compile error: " + err.Error() + "\n")
+		return
+	}
+	vm := vsic.NewVM()
+	vm.SetupGlobals()
+	if err := vm.Run(module); err != nil {
+		os.Stderr.WriteString("Runtime error: " + err.Error() + "\n")
+	}
 }
 func handleInput(input string) {
 	switch input {
