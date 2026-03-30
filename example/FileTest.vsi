@@ -2,7 +2,6 @@ fun FileTest() {
   var filePath = process.path.join(process.cwd, "./example/HelloWorld.vsi")
   process.stdout.write(filePath)
   var FileContent = process.file.readFile(filePath)
-  // cat first char
   process.stdout.write(String.new(FileContent))
 }
 FileTest()
