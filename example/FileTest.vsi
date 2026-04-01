@@ -1,7 +1,8 @@
 fun FileTest() {
   var filePath = process.path.join(process.cwd, "./example/HelloWorld.vsi")
-  process.stdout.write(filePath)
+  process.stdout.write(filePath + "\n")
   var FileContent = process.file.readFile(filePath)
+  process.stdout.write(FileContent)
   process.stdout.write(String.new(FileContent))
 }
 FileTest()

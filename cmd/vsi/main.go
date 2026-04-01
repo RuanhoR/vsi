@@ -136,17 +136,11 @@ var VSICCommand = &cobra.Command{
 
 func RunVSIC(cmd *cobra.Command, args []string) {
 	path := args[0]
-
-	start := time.Now()
-
 	err := vsic.LoadAndRun(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Runtime error: %v\n", err)
 		os.Exit(1)
 	}
-
-	elapsed := time.Since(start)
-	fmt.Printf("\nExecuted in %.2fms\n", float64(elapsed.Microseconds())/1000)
 }
 
 func init() {

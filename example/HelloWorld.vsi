@@ -1,5 +1,5 @@
 fun main() {
-  var hello = "Hello world"
+  var hello = "Hello world\n"
   process.stdout.write(hello)
 }
 main()

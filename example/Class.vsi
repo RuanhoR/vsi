@@ -1,0 +1,9 @@
+class Apple {
+  public fun eat(num: int) {
+    process.stdout.write("eat apple: " + num.toString())
+  }
+}
+
+var apple = new Apple()
+
+apple.eat(8)

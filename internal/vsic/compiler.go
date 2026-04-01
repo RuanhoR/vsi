@@ -3,6 +3,7 @@ package vsic
 import (
 	"fmt"
 
+	"github.com/RuanhoR/vsi/internal/runner/value"
 	"github.com/RuanhoR/vsi/internal/types"
 )
 
@@ -85,6 +86,8 @@ func (c *Compiler) Compile(node *types.ProgramNode, filePath string) *Module {
 		case *types.ConstDefineDeclaration:
 			c.compileStatement(stmt)
 		case *types.ImportDeclaration:
+			// 生成 OpImport 指令
+			c.emit(OpImport, stmt.Source, stmt.Alias)
 			module.Imports = append(module.Imports, ImportInfo{
 				Source: stmt.Source,
 				Alias:  stmt.Alias,
@@ -159,6 +162,7 @@ func (c *Compiler) compileFunction(decl *types.FunctionDeclaration) *CompiledFun
 	oldFunc := c.currentFunc
 	oldVars := c.variables
 	oldInstructions := c.instructions
+	oldConstants := c.constants
 
 	// 创建新的函数上下文
 	c.currentFunc = &CompiledFunction{
@@ -169,6 +173,7 @@ func (c *Compiler) compileFunction(decl *types.FunctionDeclaration) *CompiledFun
 	}
 	c.variables = make(map[string]int)
 	c.instructions = make([]Instruction, 0)
+	c.constants = make([]interface{}, 0) // 每个函数有自己独立的常量池
 
 	// 设置参数为局部变量
 	for i, param := range decl.Params {
@@ -192,11 +197,13 @@ func (c *Compiler) compileFunction(decl *types.FunctionDeclaration) *CompiledFun
 	// 保存编译好的函数
 	compiledFunc := c.currentFunc
 	compiledFunc.Instructions = c.instructions
+	compiledFunc.Constants = c.constants // 保存函数的常量池
 
 	// 恢复状态
 	c.currentFunc = oldFunc
 	c.variables = oldVars
 	c.instructions = oldInstructions
+	c.constants = oldConstants
 
 	return compiledFunc
 }
@@ -239,6 +246,7 @@ func (c *Compiler) compileMethod(method *types.ClassMethod, className string) *C
 	oldFunc := c.currentFunc
 	oldVars := c.variables
 	oldInstructions := c.instructions
+	oldConstants := c.constants
 
 	// 创建新的函数上下文
 	c.currentFunc = &CompiledFunction{
@@ -249,6 +257,7 @@ func (c *Compiler) compileMethod(method *types.ClassMethod, className string) *C
 	}
 	c.variables = make(map[string]int)
 	c.instructions = make([]Instruction, 0)
+	c.constants = make([]interface{}, 0) // 每个方法有自己独立的常量池
 
 	// this 是第一个参数
 	c.variables["this"] = 0
@@ -270,13 +279,18 @@ func (c *Compiler) compileMethod(method *types.ClassMethod, className string) *C
 	}
 
 	c.currentFunc.Instructions = c.instructions
+	c.currentFunc.Constants = c.constants // 保存方法的常量池
+
+	// 保存编译好的方法
+	compiledMethod := c.currentFunc
 
 	// 恢复状态
 	c.currentFunc = oldFunc
 	c.variables = oldVars
 	c.instructions = oldInstructions
+	c.constants = oldConstants
 
-	return c.currentFunc
+	return compiledMethod
 }
 
 // compileStatement 编译语句
@@ -440,7 +454,44 @@ func (c *Compiler) compileAssignment(left types.Expression) {
 
 // compileCallExpression 编译调用表达式
 func (c *Compiler) compileCallExpression(expr *types.CallExpression) {
-	// 编译参数
+	// 检查是否是方法调用 (obj.method())
+	// 只有当对象是变量或属性访问时才当作方法调用
+	if member, ok := expr.Callee.(*types.MemberExpression); ok {
+		// 检查 member.Object 是否是简单的标识符（变量）
+		// 如果是，那就是用户对象的方法调用，需要传递 this
+		// 如果是链式访问（如 process.stdout.write），当作普通函数调用
+		if _, isIdent := member.Object.(*types.Identifier); isIdent {
+			// 可能是方法调用，也可能是模块访问
+			// 我们假设模块访问不会产生 CompiledFunction，所以方法调用需要 this
+			// 方法调用
+			// 栈布局目标: [this, arg1, arg2, ..., method] -> OpCall (argCount+1)
+
+			// 1. 先编译 this (对象)，放在栈底
+			c.compileExpression(member.Object)
+
+			// 2. 编译参数
+			argCount := 0
+			for _, arg := range expr.Arguments {
+				if spread, ok := arg.(*types.SpreadExpression); ok {
+					c.compileExpression(spread.Argument)
+					c.emit(OpSpread)
+				} else {
+					c.compileExpression(arg)
+					argCount++
+				}
+			}
+
+			// 3. 获取方法 (编译对象，然后获取属性)
+			c.compileExpression(member.Object)
+			c.emit(OpGetProp, member.Property)
+
+			// 4. 调用 (参数数量 + 1 for this)
+			c.emit(OpCall, argCount+1)
+			return
+		}
+	}
+
+	// 普通函数调用
 	argCount := 0
 	for _, arg := range expr.Arguments {
 		if spread, ok := arg.(*types.SpreadExpression); ok {
@@ -572,7 +623,8 @@ func (c *Compiler) compileTryStatement(stmt *types.TryStatement) {
 	for _, s := range stmt.Block.Body {
 		c.compileStatement(s)
 	}
-	c.emit(OpJump, endLabel)
+	// try 块正常结束，跳转到 finally
+	c.emit(OpJump, finallyLabel)
 
 	// catch 块
 	c.setLabel(catchLabel)
@@ -585,9 +637,10 @@ func (c *Compiler) compileTryStatement(stmt *types.TryStatement) {
 			c.compileStatement(s)
 		}
 	}
-	c.emit(OpJump, endLabel)
+	// catch 块结束，跳转到 finally
+	c.emit(OpJump, finallyLabel)
 
-	// finally 块
+	// finally 块 - 正常执行或 catch 后都会到达这里
 	c.setLabel(finallyLabel)
 	if stmt.Finally != nil {
 		for _, s := range stmt.Finally.Body {
@@ -722,14 +775,14 @@ func paramTypes(params []types.Parameter) []string {
 	return types
 }
 
-func parseInt(s string) int {
+func parseInt(s string) *value.VsiNumber {
 	var n int
 	for _, ch := range s {
 		if ch >= '0' && ch <= '9' {
 			n = n*10 + int(ch-'0')
 		}
 	}
-	return n
+	return &value.VsiNumber{Value: n}
 }
 
 // AddOptimization 添加优化 pass

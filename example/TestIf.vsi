@@ -1,8 +1,0 @@
-process.stdout.write("start\n")
-var x = 10
-if (x > 5) {
-    process.stdout.write("x > 5\n")
-} else {
-    process.stdout.write("x <= 5\n")
-}
-process.stdout.write("end\n")

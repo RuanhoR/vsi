@@ -1,8 +1,0 @@
-// 简单测试循环
-var sum = 0
-for (var i = 1; i <= 3; i = i + 1) {
-    sum = sum + i
-}
-process.stdout.write("sum = ")
-process.stdout.write(sum)
-process.stdout.write("\n")
