@@ -1,0 +1,30 @@
+// 调试文件读取和数组类型
+fun testDebug() {
+  var filePath = "./example/HelloWorld.vsi"
+  var FileContent = process.file.readFile(filePath)
+  
+  process.stdout.write("数组长度：")
+  process.stdout.write(FileContent.length)
+  process.stdout.write("\n")
+  
+  // 检查第一个元素的类型
+  if (FileContent.length > 0) {
+    var firstItem = FileContent[0]
+    process.stdout.write("第一个元素：")
+    process.stdout.write(firstItem)
+    process.stdout.write("\n")
+    
+    // 测试几个元素
+    var i = 0
+    while (i < 5) {
+      process.stdout.write("元素")
+      process.stdout.write(i)
+      process.stdout.write("=")
+      process.stdout.write(FileContent[i])
+      process.stdout.write("\n")
+      i = i + 1
+    }
+  }
+}
+
+testDebug()

@@ -1,0 +1,18 @@
+// 测试文件读取功能
+fun testFileRead() {
+  var filePath = "./example/HelloWorld.vsi"
+  process.stdout.write("文件路径：")
+  process.stdout.write(filePath)
+  process.stdout.write("\n")
+  
+  var FileContent = process.file.readFile(filePath)
+  process.stdout.write("FileContent作为数组：")
+  process.stdout.write(FileContent)
+  process.stdout.write("\n")
+  
+  process.stdout.write("尝试使用String.new：")
+  var str = String.new(FileContent)
+  process.stdout.write(str)
+}
+
+testFileRead()

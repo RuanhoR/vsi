@@ -481,8 +481,8 @@ func (c *Compiler) compileCallExpression(expr *types.CallExpression) {
 				}
 			}
 
-			// 3. 获取方法 (编译对象，然后获取属性)
-			c.compileExpression(member.Object)
+			// 3. 获取方法 (复制 this 对象，然后获取属性)
+			c.emit(OpDupAt, 0) // 复制栈底的 this 对象
 			c.emit(OpGetProp, member.Property)
 
 			// 4. 调用 (参数数量 + 1 for this)
@@ -652,7 +652,6 @@ func (c *Compiler) compileTryStatement(stmt *types.TryStatement) {
 	c.emit(OpEndTry)
 }
 
-// compileVarDeclaration 编译 var 声明
 func (c *Compiler) compileVarDeclaration(decl *types.VarDefineDeclaration, module *Module) {
 	for _, d := range decl.Declarations {
 		if d.Value != nil {

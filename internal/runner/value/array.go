@@ -46,6 +46,14 @@ func (a *VsiArray) IsFrozen() bool {
 	return a.Const
 }
 
+// GetItem 获取指定索引的元素，如果索引越界则返回 nil
+func (a *VsiArray) GetItem(index int) interface{} {
+	if index >= 0 && index < len(a.Items) {
+		return a.Items[index]
+	}
+	return nil
+}
+
 // SetItem 设置指定索引的元素，如果数组不可变则返回错误
 func (a *VsiArray) SetItem(index int, value interface{}) error {
 	if a.Const {
